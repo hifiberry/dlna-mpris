@@ -282,7 +282,7 @@ class DLNAWrapper(threading.Thread):
             logging.error("Item %s", item)
             
             self.metadata["xesam:title"] = str(item.get("dc:title"))
-            self.metadata["xesam:artist"] = str(item.get("dc:creator"))
+            self.metadata["xesam:artist"] = [ str(item.get("dc:creator")) ]
             self.metadata["xesam:album"] = str(item.get("upnp:album"))
             # self.metadata["mpris:artUrl"] = item.get("upnp:albumArtURI")
             for i in item.get("upnp:albumArtURI"):
