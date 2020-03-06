@@ -201,8 +201,8 @@ class DLNAWrapper(threading.Thread):
         parser = ConfigParser()
         parser.read("/etc/dlnampris.conf")
         
-        self.playername = parser.get("dlna-mpris","systemname","HiFiBerry")
-        self.mixer =  parser.get("dlna-mpris","mixer","Softvol")
+        self.playername = parser.get("dlna-mpris","systemname",fallback="HiFiBerry")
+        self.mixer =  parser.get("dlna-mpris","mixer",fallback="Softvol")
 
             
     def run(self):
