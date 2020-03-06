@@ -246,8 +246,6 @@ class DLNAWrapper(threading.Thread):
     def parse_line(self, line):
         # logging.info("LINE %s", line)
         
-        updated = False
-        
         xmldata = None
         
         if line.startswith(b"<"):
@@ -259,7 +257,6 @@ class DLNAWrapper(threading.Thread):
         # Playback state
         try: 
             self.playback_status = xmldata["TransportState"]["@val"]
-            updated = True
             
             if self.playback_status == PLAYBACK_STOPPED:
                 self.playback_url = None
@@ -269,7 +266,6 @@ class DLNAWrapper(threading.Thread):
         # Stream URL        
         try: 
             self.playback_url = xmldata["CurrentTrackURI"]["@val"]
-            updated = True
             self.playback_metadata = {}
         except: 
             pass
@@ -279,7 +275,6 @@ class DLNAWrapper(threading.Thread):
             metadata_str = xmldata["CurrentTrackMetaData"]["@val"]
             metadata = xmltodict.parse(metadata_str)
             item = metadata["DIDL-Lite"]["item"]
-            logging.error("Item %s", item)
             
             self.metadata["xesam:title"] = str(item.get("dc:title"))
             self.metadata["xesam:artist"] = [ str(item.get("dc:creator")) ]
@@ -291,15 +286,10 @@ class DLNAWrapper(threading.Thread):
                     
             self.metadata["xesam:trackNumber"] = item.get("upnp:originalTrackNumber")
             
-            logging.error("got metadata: %s", self.metadata)
-                    
-            updated = True
+            logging.debug("got metadata: %s", self.metadata)
         except:
             pass
         
-        if updated:
-            logging.error("got something %s", line)
-                        
                         
     def stop(self):
         """
