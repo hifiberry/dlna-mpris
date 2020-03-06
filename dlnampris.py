@@ -199,8 +199,7 @@ class DLNAWrapper(threading.Thread):
             self.uuid="00000000-0000-0000-0000-000000000000"
             
         parser = ConfigParser()
-        with open("/etc/dlnampris.conf") as stream:
-            parser.read_string("[dlna-mpris]\n"+stream.read()) 
+        parser.read("/etc/dlnampris.conf")
         
         self.playername = parser.get("dlna-mpris","systemname","HiFiBerry")
         self.mixer =  parser.get("dlna-mpris","mixer","Softvol")
