@@ -315,7 +315,8 @@ class DLNAWrapper(threading.Thread):
                 
                 logging.debug("item= %s", item)
                 
-                self.metadata["xesam:title"] = str(item.get("dc:title"))
+                if "dc:title" in item:
+                    self.metadata["xesam:title"] = str(item.get("dc:title"))
                 
                 for i in ["upnp:artist","dc:creator"]:
                     val = item.get(i,"")
@@ -326,13 +327,15 @@ class DLNAWrapper(threading.Thread):
                         self.metadata["xesam:artist"] = [ val ]
                         break
                     
-                self.metadata["xesam:album"] = str(item.get("upnp:album"))
+                if "upnp:album" in item:
+                    self.metadata["xesam:album"] = str(item.get("upnp:album"))
                 
                 for i in item.get("upnp:albumArtURI",[]):
                     if i.startswith("http"):
                         logging.error("retrieving artwork not yet implemented")
-                        
-                self.metadata["xesam:trackNumber"] = item.get("upnp:originalTrackNumber")
+
+                if "upnp:originalTrackNumber" in item:
+                    self.metadata["xesam:trackNumber"] = item.get("upnp:originalTrackNumber")
                 
                 logging.debug("got metadata: %s", self.metadata)
             except Exception as e:
