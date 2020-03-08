@@ -319,6 +319,9 @@ class DLNAWrapper(threading.Thread):
                 
                 for i in ["upnp:artist","dc:creator"]:
                     val = item.get(i,"")
+                    if isinstance(val, dict):
+                        if val.get("@role").lower() == "performer":
+                            val = val.get("#text")
                     if len(val)>0:
                         self.metadata["xesam:artist"] = [ val ]
                         break
