@@ -39,6 +39,7 @@ import fcntl
 import subprocess
 import signal
 from configparser import ConfigParser
+import re
 
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
@@ -186,6 +187,8 @@ class DLNAWrapper(threading.Thread):
         self.process = None
         self.playback_url = None
         self.playback_metadata = {}
+        self.buffer=""
+        self.linesread=0
         
         
         self.uuid=""
@@ -244,51 +247,95 @@ class DLNAWrapper(threading.Thread):
 
  
     def parse_line(self, line):
-        # logging.info("LINE %s", line)
+        
+        multiline_tags = ["CurrentTrackMetaData", "AVTransportURIMetaData"]
+        #logging.error("line: %s", line)
+        
+        line = self.buffer + line.decode("utf-8").strip()
         
         xmldata = None
         
-        if line.startswith(b"<"):
+        xmltag = None
+        
+        if len(line)>2 and line.startswith("<") and line[1] != "/":
+            xmltag = re.split("[\>\ ]+", line[1:])[0]
+            #logging.error("found XML tag: %s", xmltag)
+        
+            
+        if xmltag in multiline_tags and "</"+xmltag+">" not in line:
+            #logging.error("XML not closed, continuing reading")
+            self.buffer = line
+            self.linesread += 1
+            
+            # throw away buffer if it's too long
+            if self.linesread > 20:
+                self.buffer = ""
+                self.linesread = 0 
+            return
+        else:
             try:
                 xmldata = xmltodict.parse(line)
-            except: 
-                pass
+            except:
+                logging.debug("ignoring %s",line)
+                self.buffer=""
+                return
+            
+        
+        self.buffer=""
+        self.linesread=0
+        
+        
+        #logging.error("tag=%s\nline=%s",xmltag, line )
   
         # Playback state
-        try: 
-            self.playback_status = xmldata["TransportState"]["@val"]
-            
-            if self.playback_status == PLAYBACK_STOPPED:
-                self.playback_url = None
-        except: 
-            pass
+        if xmltag == "TransportState":
+            try: 
+                self.playback_status = xmldata["TransportState"]["@val"]
+                
+                if self.playback_status == PLAYBACK_STOPPED:
+                    self.playback_url = None
+            except: 
+                logging.warn("couldn't parse TransportState line %s", line)
 
-        # Stream URL        
-        try: 
-            self.playback_url = xmldata["CurrentTrackURI"]["@val"]
-            self.playback_metadata = {}
-        except: 
-            pass
+        # Stream URL
+        elif xmltag == "CurrentTrackURI":
+            try: 
+                self.playback_url = xmldata["CurrentTrackURI"]["@val"]
+                self.playback_metadata = {}
+            except: 
+                logging.warn("couldn't parse CurrentTrackURI line %s", line)
         
         # Metadata
-        try:
-            metadata_str = xmldata["CurrentTrackMetaData"]["@val"]
-            metadata = xmltodict.parse(metadata_str)
-            item = metadata["DIDL-Lite"]["item"]
-            
-            self.metadata["xesam:title"] = str(item.get("dc:title"))
-            self.metadata["xesam:artist"] = [ str(item.get("dc:creator")) ]
-            self.metadata["xesam:album"] = str(item.get("upnp:album"))
-            # self.metadata["mpris:artUrl"] = item.get("upnp:albumArtURI")
-            for i in item.get("upnp:albumArtURI"):
-                if i.startswith("http"):
-                    logging.error("retrieving artwork not yet implemented")
+        elif xmltag in ["CurrentTrackMetaData"]:
+            try:
+                metadata_str = xmldata["CurrentTrackMetaData"]["@val"]
+                
+                metadata = xmltodict.parse(metadata_str)
+                item = metadata["DIDL-Lite"]["item"]
+                
+                logging.debug("item= %s", item)
+                
+                self.metadata["xesam:title"] = str(item.get("dc:title"))
+                
+                for i in ["upnp:artist","dc:creator"]:
+                    val = item.get(i,"")
+                    if len(val)>0:
+                        self.metadata["xesam:artist"] = [ val ]
+                        break
                     
-            self.metadata["xesam:trackNumber"] = item.get("upnp:originalTrackNumber")
-            
-            logging.debug("got metadata: %s", self.metadata)
-        except:
-            pass
+                self.metadata["xesam:album"] = str(item.get("upnp:album"))
+                
+                for i in item.get("upnp:albumArtURI",[]):
+                    if i.startswith("http"):
+                        logging.error("retrieving artwork not yet implemented")
+                        
+                self.metadata["xesam:trackNumber"] = item.get("upnp:originalTrackNumber")
+                
+                logging.debug("got metadata: %s", self.metadata)
+            except Exception as e:
+                logging.warn("could not parse CurrentTrackMetaData (%s)", e)
+                logging.exception(e)
+                pass
         
                         
     def stop(self):
@@ -336,7 +383,7 @@ class MPRISInterface(dbus.service.Object):
                 pid = None
             logging.info("Replaced by %s (PID %s)" %
                          (new_owner, pid or "unknown"))
-            loop.quit()
+            glib_mainloop.quit()
 
     def acquire_name(self):
         self.bus_name = dbus.service.BusName(self.name,
